@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>تسجيل الدخول برقم الهاتف - ARO CODE</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Cairo', sans-serif; background: #f7fafc; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+  .card { width: 360px; background: white; border-radius:12px; box-shadow: 0 6px 24px rgba(16,24,40,0.08); padding:22px; }
+  h2 { margin:0 0 12px 0; font-size:20px; }
+  input[type=text] { width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:10px; }
+  button { width:100%; padding:12px; border-radius:8px; border:none; background:#0ea5a4; color:white; font-weight:700; cursor:pointer; }
+  small { color:#6b7280; display:block; margin-top:8px; }
+  .hidden { display:none; }
+  .toast { padding:10px; border-radius:8px; margin-top:8px; background:#fee2e2; color:#991b1b; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>تسجيل الدخول برقم الهاتف</h2>
+    <p style="color:#374151; font-size:14px;">أدخل رقم هاتفك (مع رمز البلد) لاستقبال كود التحقق (OTP).</p>
+
+    <input id="phoneNumber" type="text" placeholder="+20XXXXXXXXX" aria-label="phone number">
+    <div id="recaptcha-container"></div>
+    <button id="sendBtn">إرسال رمز التحقق</button>
+
+    <div id="otpSection" class="hidden">
+      <input id="otpCode" type="text" placeholder="أدخل رمز التحقق (OTP)">
+      <button id="verifyBtn">تحقق من الرمز</button>
+    </div>
+
+    <div id="message" class="hidden" role="status"></div>
+    <small>لن نشارك رقم هاتفك مع أي طرف ثالث. يتم استخدام Firebase Authentication للتحقق الآمن.</small>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+  import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyADi4u5lGHk9z6ZR8JyeQDkAkU2BFZcm00",
+    authDomain: "arocode-dc99f.firebaseapp.com",
+    projectId: "arocode-dc99f",
+    storageBucket: "arocode-dc99f.appspot.com",
+    messagingSenderId: "330058158570",
+    appId: "1:330058158570:web:7bd409dd016a2951262293",
+    databaseURL: "https://arocode-dc99f-default-rtdb.firebaseio.com"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  const phoneInput = document.getElementById('phoneNumber');
+  const sendBtn = document.getElementById('sendBtn');
+  const otpSection = document.getElementById('otpSection');
+  const otpInput = document.getElementById('otpCode');
+  const verifyBtn = document.getElementById('verifyBtn');
+  const messageDiv = document.getElementById('message');
+
+  let confirmationResult = null;
+  let recaptchaVerifier = null;
+
+  function showMessage(text, ok=true){
+    messageDiv.textContent = text;
+    messageDiv.className = ok ? '' : 'toast';
+    messageDiv.classList.remove('hidden');
+  }
+  function hideMessage(){
+    messageDiv.classList.add('hidden');
+    messageDiv.textContent = '';
+  }
+
+  sendBtn.addEventListener('click', async () => {
+    hideMessage();
+    const phoneNumber = phoneInput.value.trim();
+    if (!phoneNumber) return showMessage('أدخل رقم الهاتف مع رمز البلد مثل +2010xxxxxxx', false);
+
+    sendBtn.disabled = true;
+
+    try {
+      // إنشاء reCAPTCHA عند الضغط فقط
+      recaptchaVerifier = new RecaptchaVerifier(
+        'recaptcha-container',
+        { size: 'invisible' },
+        auth
+      );
+      await recaptchaVerifier.render();
+
+      confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+      otpSection.classList.remove('hidden');
+      showMessage('تم إرسال رمز التحقق. افحص هاتفك.', true);
+    } catch (err) {
+      console.error("Send OTP Error:", err);
+      showMessage('خطأ أثناء إرسال رمز التحقق: ' + (err.message || err.code || ''), false);
+      sendBtn.disabled = false;
+    }
+  });
+
+  verifyBtn.addEventListener('click', async () => {
+    hideMessage();
+    const code = otpInput.value.trim();
+    if (!code) return showMessage('أدخل رمز التحقق', false);
+
+    verifyBtn.disabled = true;
+    try {
+      const result = await confirmationResult.confirm(code);
+      const user = result.user;
+      if (user?.phoneNumber) {
+        localStorage.setItem('pNum', user.phoneNumber.replace(/\s+/g, ''));
+        localStorage.setItem('acces', 'true');
+      }
+      showMessage('تم التحقق بنجاح. سيتم توجيهك إلى الصفحة الرئيسية.');
+      setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+    } catch (err) {
+      console.error("Verify OTP Error:", err);
+      showMessage('رمز غير صحيح أو انتهت صلاحية الرمز.', false);
+      verifyBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
